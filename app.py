@@ -1948,7 +1948,7 @@ def translate_market():
         "Very High","High","Medium","Low","Price Rising","Price Falling",
         "Very High Demand","All","Crop","Price","Change","Demand",
         "Trend","Comparison","Demand Map","Search","30-Day Price Trend",
-        "Current Prices","Demand Intensity","Price Momentum",
+        "Current Prices","Demand Intensity","Price Momentum","Price Graph","Comparison Table",
         "Showing all major Indian markets","quintal","Searching","Loading markets",
         "Live","MSP Reference","crops",
     ]
