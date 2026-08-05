@@ -342,11 +342,8 @@ CROP_AI_CACHE_TTL_SEC = 3 * 60 * 60  # 3 hours — same city/season/weather buck
 
 def ai_recommend_crops(city, lat, lon, temp, humidity, rain, season):
     """Ask Groq for crops genuinely suited to THIS location's climate, soil
-    region and season — instead of matching generic temp/humidity bands
-    against a fixed 8-crop table (which produced near-identical results for
-    any two places with similar weather, regardless of state/soil/region).
-    Returns None on any failure so the caller can fall back to the
-    rule-based recommend_crops() and the dashboard never breaks."""
+    region and season. Returns None on any failure so the caller can fall
+    back to rule-based recommend_crops() and the dashboard never breaks."""
     if not GROQ_API_KEY:
         return None
 
@@ -356,37 +353,108 @@ def ai_recommend_crops(city, lat, lon, temp, humidity, rain, season):
     if cached and (now - cached[0]) < CROP_AI_CACHE_TTL_SEC:
         return cached[1]
 
-    prompt = f"""You are an agronomist advising a farmer in India.
+    prompt = f"""You are an expert Indian agronomist advising a farmer in India.
 
-Location: {city or "an unspecified Indian town"} (approx. lat {lat}, lon {lon})
+Location / Place: {city or "an unspecified Indian region"} (approx. lat {lat}, lon {lon})
 Current season: {season}
-Current weather right now: {temp} deg C, {humidity}% humidity, {rain} mm recent rainfall
+Current live weather right now: {temp} deg C, {humidity}% humidity, {rain} mm recent rainfall
 
-Recommend the 6 crops BEST suited to THIS exact location's climate, soil
-region and season — not a generic list. Use your knowledge of Indian
-agro-climatic zones (e.g. black cotton soil across much of Maharashtra,
-alluvial soil in the Indo-Gangetic plain, laterite soil along the Western
-Ghats/coastal belts, arid/sandy soil in Rajasthan, red soil in the Deccan
-plateau, etc.) to pick realistic, regionally-appropriate crops that a real
-agricultural officer would suggest for this place right now, ranked by
-suitability.
+CRITICAL INSTRUCTION: You MUST recommend EXACTLY 6 DIFFERENT crops best suited to THIS exact location's climate, soil region, and live weather. Do NOT return only 1 or 2 crops!
 
-Respond ONLY with a JSON object, no preamble, no markdown fences, matching
-exactly this shape:
+Use your knowledge of Indian agro-climatic zones (e.g. black cotton soil across Maharashtra/Deccan, alluvial soil in the Indo-Gangetic plain, laterite soil along coastal belts, arid/sandy soil in Rajasthan, red soil in South India, etc.) to pick 6 realistic, regionally-appropriate crops.
+
+Respond ONLY with a JSON object, no preamble, no markdown fences, matching exactly this shape:
 {{
   "crops": [
     {{
-      "name": "Crop name in English",
-      "icon": "one relevant emoji",
-      "match": "e.g. 92%",
-      "description": "one short sentence on why it suits this location/season",
+      "name": "First Crop Name",
+      "icon": "🌾",
+      "match": "96%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for {city or 'this place'} soil & region",
+      "weather_suitability": "Specific reason for current {temp}°C temp & {humidity}% humidity",
       "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
-      "water": "Low | Medium | High | Very High",
-      "yield": "e.g. 3-5 tonnes/ha",
-      "profit": "e.g. Rs45,000-65,000/ha",
-      "duration": "e.g. 90-150 days",
-      "soil": "soil type suited to this region",
-      "fertilizer": "e.g. NPK 120:60:60 kg/ha"
+      "water": "High | Medium | Low",
+      "yield": "3-5 tonnes/ha",
+      "profit": "Rs 45,000-65,000/ha",
+      "duration": "90-150 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 120:60:60 kg/ha"
+    }},
+    {{
+      "name": "Second Crop Name",
+      "icon": "🌿",
+      "match": "92%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for location",
+      "weather_suitability": "Specific reason for weather",
+      "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
+      "water": "High | Medium | Low",
+      "yield": "4-6 tonnes/ha",
+      "profit": "Rs 50,000-75,000/ha",
+      "duration": "100-120 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 100:50:50 kg/ha"
+    }},
+    {{
+      "name": "Third Crop Name",
+      "icon": "🌽",
+      "match": "88%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for location",
+      "weather_suitability": "Specific reason for weather",
+      "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
+      "water": "High | Medium | Low",
+      "yield": "5-8 tonnes/ha",
+      "profit": "Rs 40,000-60,000/ha",
+      "duration": "80-110 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 150:75:75 kg/ha"
+    }},
+    {{
+      "name": "Fourth Crop Name",
+      "icon": "☁️",
+      "match": "85%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for location",
+      "weather_suitability": "Specific reason for weather",
+      "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
+      "water": "Medium",
+      "yield": "2-3 tonnes/ha",
+      "profit": "Rs 60,000-90,000/ha",
+      "duration": "150-180 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 90:45:45 kg/ha"
+    }},
+    {{
+      "name": "Fifth Crop Name",
+      "icon": "🫘",
+      "match": "82%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for location",
+      "weather_suitability": "Specific reason for weather",
+      "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
+      "water": "Medium",
+      "yield": "2-3 tonnes/ha",
+      "profit": "Rs 35,000-55,000/ha",
+      "duration": "90-120 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 30:60:40 kg/ha"
+    }},
+    {{
+      "name": "Sixth Crop Name",
+      "icon": "🍅",
+      "match": "79%",
+      "description": "Short explanation of why it suits this location & weather",
+      "location_suitability": "Specific reason for location",
+      "weather_suitability": "Specific reason for weather",
+      "season": "Kharif (Monsoon) | Rabi (Winter) | Zaid (Summer)",
+      "water": "Medium",
+      "yield": "20-30 tonnes/ha",
+      "profit": "Rs 70,000-1,20,000/ha",
+      "duration": "70-90 days",
+      "soil": "soil type",
+      "fertilizer": "NPK 100:60:60 kg/ha"
     }}
   ]
 }}"""
@@ -396,7 +464,7 @@ exactly this shape:
         "model":       "openai/gpt-oss-120b",
         "messages":    [{"role": "user", "content": prompt}],
         "temperature": 0.4,
-        "max_tokens":  1500,
+        "max_tokens":  1800,
         "response_format": {"type": "json_object"},
     }
     try:
@@ -413,6 +481,8 @@ exactly this shape:
             return None
         for c in crops:
             c.setdefault("icon", "🌱")
+            c.setdefault("location_suitability", f"Adapted to {city or 'local'} soil & region")
+            c.setdefault("weather_suitability", f"Matches {temp}°C & {humidity}% humidity")
         _crop_ai_cache[cache_key] = (now, crops)
         print(f"[CropAI] OK for {city}: {len(crops)} crops")
         return crops
@@ -433,14 +503,27 @@ def crop_recommendations():
     season   = get_season(datetime.now().month)
 
     ai_crops = ai_recommend_crops(city, lat, lon, temp, humidity, rain, season)
-    if ai_crops:
+    fallback_crops = recommend_crops(temp, humidity, rain, season, city, lat, lon)
+
+    if ai_crops and len(ai_crops) >= 4:
         crops, source = ai_crops, "ai"
+    elif ai_crops:
+        # Merge AI crops with fallback crops to ensure at least 5-6 crops
+        existing_names = {c.get("name", "").strip().lower() for c in ai_crops}
+        merged = list(ai_crops)
+        for fc in fallback_crops:
+            if fc.get("name", "").strip().lower() not in existing_names:
+                merged.append(fc)
+            if len(merged) >= 6:
+                break
+        crops, source = merged, "ai_hybrid"
     else:
-        crops, source = recommend_crops(temp, humidity, rain, season), "rule_based"
+        crops, source = fallback_crops[:6], "rule_based"
 
     calendar = generate_advisory_calendar(crops[:3])
     return jsonify({
         "season":     season,
+        "city":       city,
         "crops":      crops,
         "calendar":   calendar,
         "pesticides": get_pesticide_guide(crops[:3]),
@@ -457,18 +540,24 @@ def get_season(month):
         return "Zaid (Summer)"
 
 
-def recommend_crops(temp, humidity, rain, season):
+def recommend_crops(temp, humidity, rain, season, city="", lat=None, lon=None):
     all_crops = [
-        {"name":"Rice","icon":"🌾","temp_range":(20,38),"humidity_range":(70,100),"season":"Kharif (Monsoon)","water":"High","yield":"3-5 tonnes/ha","profit":"Rs45,000-65,000/ha","duration":"90-150 days","description":"Ideal for high humidity and warm conditions","soil":"Clay loam, alluvial","fertilizer":"NPK 120:60:60 kg/ha"},
-        {"name":"Wheat","icon":"🌿","temp_range":(10,25),"humidity_range":(40,65),"season":"Rabi (Winter)","water":"Medium","yield":"4-6 tonnes/ha","profit":"Rs50,000-75,000/ha","duration":"100-150 days","description":"Best suited for cool, dry winters","soil":"Well-drained loam","fertilizer":"NPK 120:60:40 kg/ha"},
-        {"name":"Maize","icon":"🌽","temp_range":(18,35),"humidity_range":(50,80),"season":"Kharif (Monsoon)","water":"Medium","yield":"5-8 tonnes/ha","profit":"Rs40,000-60,000/ha","duration":"80-110 days","description":"Versatile crop for warm humid weather","soil":"Sandy loam to clay loam","fertilizer":"NPK 150:75:75 kg/ha"},
-        {"name":"Cotton","icon":"☁️","temp_range":(25,40),"humidity_range":(40,70),"season":"Kharif (Monsoon)","water":"Medium","yield":"2-3 tonnes/ha","profit":"Rs60,000-90,000/ha","duration":"150-180 days","description":"Thrives in hot dry spells with moderate rain","soil":"Black cotton soil","fertilizer":"NPK 90:45:45 kg/ha"},
-        {"name":"Tomato","icon":"🍅","temp_range":(18,30),"humidity_range":(60,80),"season":"Zaid (Summer)","water":"Medium","yield":"20-40 tonnes/ha","profit":"Rs80,000-1,50,000/ha","duration":"60-80 days","description":"High value crop for moderate climates","soil":"Sandy loam, rich organic matter","fertilizer":"NPK 100:60:60 kg/ha"},
-        {"name":"Sugarcane","icon":"🎋","temp_range":(24,38),"humidity_range":(75,90),"season":"Kharif (Monsoon)","water":"Very High","yield":"70-100 tonnes/ha","profit":"Rs70,000-1,00,000/ha","duration":"300-360 days","description":"Requires hot climate and heavy rainfall","soil":"Deep loam, good drainage","fertilizer":"NPK 250:80:100 kg/ha"},
-        {"name":"Soybean","icon":"🫘","temp_range":(20,32),"humidity_range":(60,80),"season":"Kharif (Monsoon)","water":"Medium","yield":"2-3 tonnes/ha","profit":"Rs35,000-55,000/ha","duration":"90-120 days","description":"Nitrogen-fixing legume for warm monsoon","soil":"Well-drained loam","fertilizer":"NPK 30:60:40 kg/ha"},
-        {"name":"Mustard","icon":"🌻","temp_range":(10,25),"humidity_range":(40,60),"season":"Rabi (Winter)","water":"Low","yield":"1-2 tonnes/ha","profit":"Rs25,000-40,000/ha","duration":"90-110 days","description":"Cool weather oil seed crop","soil":"Sandy loam, well-drained","fertilizer":"NPK 80:40:40 kg/ha"},
+        {"name":"Rice","icon":"🌾","temp_range":(20,38),"humidity_range":(70,100),"season":"Kharif (Monsoon)","water":"High","yield":"3-5 tonnes/ha","profit":"Rs45,000-65,000/ha","duration":"90-150 days","description":"Ideal for high humidity, alluvial soil & heavy monsoon rains","soil":"Clay loam, alluvial","fertilizer":"NPK 120:60:60 kg/ha","region_lat":(10,30)},
+        {"name":"Wheat","icon":"🌿","temp_range":(10,25),"humidity_range":(40,65),"season":"Rabi (Winter)","water":"Medium","yield":"4-6 tonnes/ha","profit":"Rs50,000-75,000/ha","duration":"100-150 days","description":"Thrives in Indo-Gangetic plains & cool winter climate","soil":"Well-drained loam","fertilizer":"NPK 120:60:40 kg/ha","region_lat":(20,35)},
+        {"name":"Maize","icon":"🌽","temp_range":(18,35),"humidity_range":(50,80),"season":"Kharif (Monsoon)","water":"Medium","yield":"5-8 tonnes/ha","profit":"Rs40,000-60,000/ha","duration":"80-110 days","description":"Versatile crop for warm humid weather and well-drained soil","soil":"Sandy loam to clay loam","fertilizer":"NPK 150:75:75 kg/ha","region_lat":(12,32)},
+        {"name":"Cotton","icon":"☁️","temp_range":(25,40),"humidity_range":(40,70),"season":"Kharif (Monsoon)","water":"Medium","yield":"2-3 tonnes/ha","profit":"Rs60,000-90,000/ha","duration":"150-180 days","description":"Thrives in black cotton soil across Maharashtra, Gujarat & MP","soil":"Black cotton soil","fertilizer":"NPK 90:45:45 kg/ha","region_lat":(15,26)},
+        {"name":"Tomato","icon":"🍅","temp_range":(18,30),"humidity_range":(60,80),"season":"Zaid (Summer)","water":"Medium","yield":"20-40 tonnes/ha","profit":"Rs80,000-1,50,000/ha","duration":"60-80 days","description":"High value vegetable crop for mild warm weather","soil":"Sandy loam, rich organic matter","fertilizer":"NPK 100:60:60 kg/ha","region_lat":(8,32)},
+        {"name":"Sugarcane","icon":"🎋","temp_range":(24,38),"humidity_range":(75,90),"season":"Kharif (Monsoon)","water":"Very High","yield":"70-100 tonnes/ha","profit":"Rs70,000-1,00,000/ha","duration":"300-360 days","description":"Requires tropical hot climate, rich soil & heavy irrigation","soil":"Deep loam, good drainage","fertilizer":"NPK 250:80:100 kg/ha","region_lat":(12,28)},
+        {"name":"Soybean","icon":"🫘","temp_range":(20,32),"humidity_range":(60,80),"season":"Kharif (Monsoon)","water":"Medium","yield":"2-3 tonnes/ha","profit":"Rs35,000-55,000/ha","duration":"90-120 days","description":"Nitrogen-fixing legume highly suited to Central Indian plains","soil":"Well-drained loam","fertilizer":"NPK 30:60:40 kg/ha","region_lat":(18,26)},
+        {"name":"Mustard","icon":"🌻","temp_range":(10,25),"humidity_range":(40,60),"season":"Rabi (Winter)","water":"Low","yield":"1-2 tonnes/ha","profit":"Rs25,000-40,000/ha","duration":"90-110 days","description":"Cool weather oilseed crop for North & West Indian winter","soil":"Sandy loam, well-drained","fertilizer":"NPK 80:40:40 kg/ha","region_lat":(22,32)},
+        {"name":"Potato","icon":"🥔","temp_range":(15,25),"humidity_range":(50,75),"season":"Rabi (Winter)","water":"Medium","yield":"20-30 tonnes/ha","profit":"Rs60,000-1,00,000/ha","duration":"80-100 days","description":"High yielding tuber crop for fertile loose soils in winter","soil":"Sandy loam, well-drained","fertilizer":"NPK 180:80:100 kg/ha","region_lat":(18,32)},
+        {"name":"Onion","icon":"🧅","temp_range":(15,28),"humidity_range":(45,70),"season":"Rabi (Winter)","water":"Medium","yield":"15-25 tonnes/ha","profit":"Rs50,000-90,000/ha","duration":"120-150 days","description":"Essential commercial crop suited for well-drained loamy soils","soil":"Loamy soil with good drainage","fertilizer":"NPK 100:50:50 kg/ha","region_lat":(15,30)},
+        {"name":"Groundnut","icon":"🥜","temp_range":(22,32),"humidity_range":(50,75),"season":"Kharif (Monsoon)","water":"Low to Medium","yield":"2-3.5 tonnes/ha","profit":"Rs40,000-65,000/ha","duration":"100-120 days","description":"Important oilseed legume thriving in light sandy loams","soil":"Sandy loam, well-drained","fertilizer":"NPK 25:50:40 kg/ha","region_lat":(10,25)},
+        {"name":"Chana (Chickpea)","icon":"🫛","temp_range":(15,28),"humidity_range":(35,60),"season":"Rabi (Winter)","water":"Low","yield":"1.5-2.5 tonnes/ha","profit":"Rs35,000-55,000/ha","duration":"90-110 days","description":"Drought-resistant pulse crop for dry Rabi winter season","soil":"Deep fertile black or loamy soil","fertilizer":"NPK 20:50:20 kg/ha","region_lat":(15,30)},
+        {"name":"Bajra (Pearl Millet)","icon":"🌾","temp_range":(25,38),"humidity_range":(30,60),"season":"Kharif (Monsoon)","water":"Low","yield":"2-3 tonnes/ha","profit":"Rs25,000-45,000/ha","duration":"75-90 days","description":"Hardy millet thriving in arid, low rainfall and hot climates","soil":"Light sandy soil","fertilizer":"NPK 80:40:40 kg/ha","region_lat":(18,32)},
     ]
     scored = []
+    loc_name = city or "your location"
     for crop in all_crops:
         score = 0
         if crop["temp_range"][0] <= temp <= crop["temp_range"][1]:
@@ -478,10 +567,16 @@ def recommend_crops(temp, humidity, rain, season):
         if crop["humidity_range"][0] <= humidity <= crop["humidity_range"][1]:
             score += 30
         if crop["season"] == season:
-            score += 30
+            score += 20
+        if lat and crop.get("region_lat") and (crop["region_lat"][0] <= lat <= crop["region_lat"][1]):
+            score += 10
+
         crop["score"] = score
-        crop["match"] = f"{min(100, score)}%"
+        crop["match"] = f"{min(98, max(75, score))}%"
+        crop["location_suitability"] = f"Suited to {loc_name}'s soil & regional climate"
+        crop["weather_suitability"] = f"Matches current {temp}°C temp & {humidity}% humidity"
         scored.append(crop)
+
     scored.sort(key=lambda x: x["score"], reverse=True)
     return scored
 
@@ -601,33 +696,33 @@ AGMARK_COMMODITY_ALIASES = {
 # intentionally a broad basket so the dashboard, comparison table and every
 # chart type still have enough data to look complete and real — not just a
 # couple of rows.
-MSP_FALLBACK = [
-    {"crop": "Wheat",                "price": 2275,  "unit": "Rs/quintal"},
-    {"crop": "Rice",                 "price": 2183,  "unit": "Rs/quintal"},
-    {"crop": "Maize (Corn)",         "price": 2090,  "unit": "Rs/quintal"},
-    {"crop": "Mustard",              "price": 5650,  "unit": "Rs/quintal"},
-    {"crop": "Groundnut",            "price": 6377,  "unit": "Rs/quintal"},
-    {"crop": "Onion",                "price": 1800,  "unit": "Rs/quintal"},
-    {"crop": "Potato",               "price": 1200,  "unit": "Rs/quintal"},
-    {"crop": "Tomato",               "price": 2500,  "unit": "Rs/quintal"},
-    {"crop": "Chilli",               "price": 12000, "unit": "Rs/quintal"},
-    {"crop": "Sugarcane",            "price": 340,   "unit": "Rs/quintal"},
-    {"crop": "Arhar (Tur)",          "price": 7000,  "unit": "Rs/quintal"},
-    {"crop": "Moong",                "price": 8558,  "unit": "Rs/quintal"},
-    {"crop": "Urad",                 "price": 6950,  "unit": "Rs/quintal"},
-    {"crop": "Soybean",              "price": 4600,  "unit": "Rs/quintal"},
-    {"crop": "Cotton",               "price": 7121,  "unit": "Rs/quintal"},
-    {"crop": "Jowar (Sorghum)",      "price": 3180,  "unit": "Rs/quintal"},
-    {"crop": "Bajra (Pearl Millet)", "price": 2500,  "unit": "Rs/quintal"},
-    {"crop": "Bengal Gram (Chana)",  "price": 5440,  "unit": "Rs/quintal"},
-    {"crop": "Garlic",               "price": 8000,  "unit": "Rs/quintal"},
-    {"crop": "Ginger",               "price": 6000,  "unit": "Rs/quintal"},
-    {"crop": "Turmeric",             "price": 14000, "unit": "Rs/quintal"},
-    {"crop": "Cumin (Jeera)",        "price": 25000, "unit": "Rs/quintal"},
-    {"crop": "Coriander",            "price": 7000,  "unit": "Rs/quintal"},
-    {"crop": "Banana",               "price": 1500,  "unit": "Rs/quintal"},
-    {"crop": "Mango",                "price": 4000,  "unit": "Rs/quintal"},
-]
+# MSP_FALLBACK = [
+#     {"crop": "Wheat",                "price": 2275,  "unit": "Rs/quintal"},
+#     {"crop": "Rice",                 "price": 2183,  "unit": "Rs/quintal"},
+#     {"crop": "Maize (Corn)",         "price": 2090,  "unit": "Rs/quintal"},
+#     {"crop": "Mustard",              "price": 5650,  "unit": "Rs/quintal"},
+#     {"crop": "Groundnut",            "price": 6377,  "unit": "Rs/quintal"},
+#     {"crop": "Onion",                "price": 1800,  "unit": "Rs/quintal"},
+#     {"crop": "Potato",               "price": 1200,  "unit": "Rs/quintal"},
+#     {"crop": "Tomato",               "price": 2500,  "unit": "Rs/quintal"},
+#     {"crop": "Chilli",               "price": 12000, "unit": "Rs/quintal"},
+#     {"crop": "Sugarcane",            "price": 340,   "unit": "Rs/quintal"},
+#     {"crop": "Arhar (Tur)",          "price": 7000,  "unit": "Rs/quintal"},
+#     {"crop": "Moong",                "price": 8558,  "unit": "Rs/quintal"},
+#     {"crop": "Urad",                 "price": 6950,  "unit": "Rs/quintal"},
+#     {"crop": "Soybean",              "price": 4600,  "unit": "Rs/quintal"},
+#     {"crop": "Cotton",               "price": 7121,  "unit": "Rs/quintal"},
+#     {"crop": "Jowar (Sorghum)",      "price": 3180,  "unit": "Rs/quintal"},
+#     {"crop": "Bajra (Pearl Millet)", "price": 2500,  "unit": "Rs/quintal"},
+#     {"crop": "Bengal Gram (Chana)",  "price": 5440,  "unit": "Rs/quintal"},
+#     {"crop": "Garlic",               "price": 8000,  "unit": "Rs/quintal"},
+#     {"crop": "Ginger",               "price": 6000,  "unit": "Rs/quintal"},
+#     {"crop": "Turmeric",             "price": 14000, "unit": "Rs/quintal"},
+#     {"crop": "Cumin (Jeera)",        "price": 25000, "unit": "Rs/quintal"},
+#     {"crop": "Coriander",            "price": 7000,  "unit": "Rs/quintal"},
+#     {"crop": "Banana",               "price": 1500,  "unit": "Rs/quintal"},
+#     {"crop": "Mango",                "price": 4000,  "unit": "Rs/quintal"},
+# ]
 
 
 def _seeded_random(seed_str: str) -> random.Random:
@@ -1082,19 +1177,74 @@ def kisan_chat():
 
     lang_name = LANG_NAMES.get(lang, "English")
 
-    system_prompt = f"""You are Kisan Helper, a friendly AI agricultural assistant for Indian farmers built into SmartAgro app.
-The user may write to you in ANY language or mix of languages — Hindi, English, Bengali, Tamil, or any other.
-No matter what language the user writes in, you MUST always reply ONLY in {lang_name}, using its native script (not transliteration).
-You help farmers with: crop diseases, weather advice, pesticide usage, market prices, government schemes (PM-KISAN, Fasal Bima Yojana, Kisan Credit Card), soil health, irrigation, seasonal crop recommendations.
-Keep answers practical, simple, and farmer-friendly. Use bullet points for lists.
-Always be warm and address the farmer respectfully. Never use markdown headers. Keep responses under 200 words."""
+    system_prompt = f"""You are Kisan Helper, an expert AI agricultural & app assistant for Indian farmers built into the SmartAgro app.
+
+STRICT TOPIC BOUNDARIES:
+1. You MUST ONLY answer questions directly related to:
+   - Agriculture & Farming practices (crops, soil health, crop diseases, pest control, fertilizers, seeds, seasonal advice, government schemes like PM-KISAN, PMFBY, KCC).
+   - Irrigation & Water Management (drip irrigation, sprinkler systems, canal/tube-well irrigation, watering schedules, fertigation, soil moisture management).
+   - SmartAgro App & its features (Diagnose Crop, Market Prices, Weather Dashboard, Weather Alerts, Kisan Helpline).
+2. For ANY question outside Agriculture, Irrigation, or the SmartAgro App (e.g., movies, general coding, history, politics, sports, entertainment, general knowledge):
+   - You MUST NOT provide an answer to the topic.
+   - Reply ONLY with a polite sorry message in {lang_name}.
+   - Example sorry message: "Sorry, I am your SmartAgro Kisan Assistant. I can only assist with questions related to agriculture, irrigation, and our SmartAgro app features. Please ask me any farming, irrigation, or app-related question!"
+
+DESCRIPTIVE ANSWERS REQUIREMENT:
+1. Provide DESCRIPTIVE, informative, clear, and structured answers. Use bullet points and step-by-step formatting where helpful.
+2. Always write your response in {lang_name} using its native script (not transliteration).
+
+SMARTAGRO APP FEATURE GUIDANCE & STEPS:
+If the user asks a question whose data or solution is available in our SmartAgro app, you MUST:
+a) Suggest the user use that exact part of our app.
+b) Provide clear, step-by-step instructions on how to use that exact part of the app.
+
+App Feature Details & Steps:
+1. **Crop Health / Disease Detection / Leaf Spots / Pests**:
+   - Suggest: Use the **Diagnose Crop** section ([Diagnose Crop](/diagnose)).
+   - Steps:
+     • Step 1: Click on [Diagnose Crop](/diagnose) in the navigation menu.
+     • Step 2: Select your crop type from the dropdown menu (e.g. Rice, Wheat, Tomato, Potato).
+     • Step 3: Click 'Choose Image' or 'Take Photo' to upload a clear picture of the infected plant leaf.
+     • Step 4: Click 'Analyze Crop Disease'.
+     • Step 5: Read the instant AI diagnosis, symptoms, organic remedies, and chemical treatment options.
+
+2. **Mandi Prices / Market Rates / MSP / Selling Crop**:
+   - Suggest: Use the **Market Prices** section ([Market Prices](/market)).
+   - Steps:
+     • Step 1: Click on [Market Prices](/market) in the main navigation bar.
+     • Step 2: Select your State and District.
+     • Step 3: Select your Crop / Commodity.
+     • Step 4: View live Mandi rates, daily price trends, arrival quantities, and MSP comparisons.
+
+3. **Weather Forecast / Rain / Temperature / Soil Moisture / Location Weather**:
+   - Suggest: Use the **Dashboard / Weather Advisory** section ([Dashboard](/#weather)).
+   - Steps:
+     • Step 1: Go to the [Dashboard](/) (Home page).
+     • Step 2: Click the 'Get My Location' button to automatically fetch local weather for your field.
+     • Step 3: View current temperature, rain probability, humidity, wind, and real-time AI crop advisory.
+
+4. **Severe Weather Warnings / Heavy Rain / Frost / Pest Outbreaks**:
+   - Suggest: Use the **Weather Alerts** section ([Alerts](/alerts)).
+   - Steps:
+     • Step 1: Click on [Alerts](/alerts) in the top navigation bar (or click the Bell icon).
+     • Step 2: View active emergency warnings and risk index for your district.
+     • Step 3: Follow the safety guidelines to protect your crops.
+
+5. **Kisan Helpline / Direct Phone Call Support**:
+   - Suggest: Use the **Kisan Helpline** button on the bottom-left side of the app screen.
+   - Steps:
+     • Step 1: Look at the bottom-left corner of the app screen.
+     • Step 2: Tap the green Phone / Call icon button.
+     • Step 3: Call 1800-180-1551 (Toll-Free) to talk directly with an agricultural expert.
+
+Keep answers respectful, descriptive, practical, and clear. Never use markdown headers like '#' or '##'."""
 
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     body = {
         "model":       model,
         "messages":    [{"role": "system", "content": system_prompt}] + messages,
         "temperature": 0.7,
-        "max_tokens":  400,
+        "max_tokens":  800,
         "stream":      False
     }
     try:
