@@ -690,92 +690,8 @@ AGMARK_COMMODITY_ALIASES = {
     "banana": "Banana", "mango": "Mango",
 }
 
-# ── Hardcoded fallback (MSP / reference) commodities ─────────────────────────
-# Used whenever the live Agmarknet feed returns nothing for a state (rate
-# limited test key, holiday with no reporting, network hiccup, etc). This is
-# intentionally a broad basket so the dashboard, comparison table and every
-# chart type still have enough data to look complete and real — not just a
-# couple of rows.
-# MSP_FALLBACK = [
-#     {"crop": "Wheat",                "price": 2275,  "unit": "Rs/quintal"},
-#     {"crop": "Rice",                 "price": 2183,  "unit": "Rs/quintal"},
-#     {"crop": "Maize (Corn)",         "price": 2090,  "unit": "Rs/quintal"},
-#     {"crop": "Mustard",              "price": 5650,  "unit": "Rs/quintal"},
-#     {"crop": "Groundnut",            "price": 6377,  "unit": "Rs/quintal"},
-#     {"crop": "Onion",                "price": 1800,  "unit": "Rs/quintal"},
-#     {"crop": "Potato",               "price": 1200,  "unit": "Rs/quintal"},
-#     {"crop": "Tomato",               "price": 2500,  "unit": "Rs/quintal"},
-#     {"crop": "Chilli",               "price": 12000, "unit": "Rs/quintal"},
-#     {"crop": "Sugarcane",            "price": 340,   "unit": "Rs/quintal"},
-#     {"crop": "Arhar (Tur)",          "price": 7000,  "unit": "Rs/quintal"},
-#     {"crop": "Moong",                "price": 8558,  "unit": "Rs/quintal"},
-#     {"crop": "Urad",                 "price": 6950,  "unit": "Rs/quintal"},
-#     {"crop": "Soybean",              "price": 4600,  "unit": "Rs/quintal"},
-#     {"crop": "Cotton",               "price": 7121,  "unit": "Rs/quintal"},
-#     {"crop": "Jowar (Sorghum)",      "price": 3180,  "unit": "Rs/quintal"},
-#     {"crop": "Bajra (Pearl Millet)", "price": 2500,  "unit": "Rs/quintal"},
-#     {"crop": "Bengal Gram (Chana)",  "price": 5440,  "unit": "Rs/quintal"},
-#     {"crop": "Garlic",               "price": 8000,  "unit": "Rs/quintal"},
-#     {"crop": "Ginger",               "price": 6000,  "unit": "Rs/quintal"},
-#     {"crop": "Turmeric",             "price": 14000, "unit": "Rs/quintal"},
-#     {"crop": "Cumin (Jeera)",        "price": 25000, "unit": "Rs/quintal"},
-#     {"crop": "Coriander",            "price": 7000,  "unit": "Rs/quintal"},
-#     {"crop": "Banana",               "price": 1500,  "unit": "Rs/quintal"},
-#     {"crop": "Mango",                "price": 4000,  "unit": "Rs/quintal"},
-# ]
-
-
-def _seeded_random(seed_str: str) -> random.Random:
-    """Deterministic per-(city, crop) PRNG so fallback history/price looks
-    the same on every page load (instead of jumping around on refresh) but
-    still varies sensibly between cities and crops."""
-    h = hashlib.md5(seed_str.encode("utf-8")).hexdigest()
-    return random.Random(int(h[:12], 16))
-
-
-def generate_fallback_series(city: str, crop_name: str, base_price: float, days: int = 30):
-    """Build a plausible 30-day price history for a fallback commodity in a
-    given city: a small deterministic city-specific offset from the MSP
-    base price, then a random walk backwards so charts/tables have real
-    variation (trend lines, up/down %, demand tiers) instead of a flat
-    zero-change line. Returns (history_oldest_to_newest, today_price, change_pct)."""
-    rnd = _seeded_random(f"{city}:{crop_name}")
-    city_factor = 0.95 + rnd.random() * 0.10          # ±5% city-to-city variation
-    today_price = max(1, round(base_price * city_factor))
-
-    history = [today_price]
-    price = today_price
-    for _ in range(days - 1):
-        drift = (rnd.random() - 0.5) * 0.04            # ±2% daily drift
-        price = max(round(price / (1 + drift)), round(base_price * 0.5))
-        history.append(price)
-    history.reverse()  # oldest -> newest, history[-1] == today_price
-
-    prev = history[-2] if len(history) > 1 else today_price
-    change = round(((today_price - prev) / prev) * 100, 2) if prev else 0.0
-    return history, today_price, change
-
-
-def build_fallback_crops(city: str) -> list:
-    """Full fallback commodity list for one city, each with real-looking
-    history/change/demand so every table and chart on the market page has
-    something meaningful to render."""
-    crops = []
-    for fb in MSP_FALLBACK:
-        history, price, change = generate_fallback_series(city, fb["crop"], fb["price"])
-        crops.append({
-            "crop":     fb["crop"],
-            "crop_key": fb["crop"],
-            "price":    price,
-            "change":   change,
-            "history":  history,
-            "unit":     fb.get("unit", "Rs/quintal"),
-            "source":   "msp_fallback",
-        })
-    return crops
-
-
 CITY_STATE = {
+    # ── Previously supported ──
     "Delhi":         "Delhi",
     "Mumbai":        "Maharashtra",
     "Kolkata":       "West Bengal",
@@ -796,14 +712,76 @@ CITY_STATE = {
     "Bhubaneswar":   "Odisha",
     "Guwahati":      "Assam",
     "Amritsar":      "Punjab",
+
+    # ── More cities in already-covered states (no extra API calls — same
+    #    state fetch is reused) ──
+    "Vadodara":      "Gujarat",
+    "Rajkot":        "Gujarat",
+    "Nashik":        "Maharashtra",
+    "Aurangabad":    "Maharashtra",
+    "Varanasi":      "Uttar Pradesh",
+    "Agra":          "Uttar Pradesh",
+    "Meerut":        "Uttar Pradesh",
+    "Prayagraj":     "Uttar Pradesh",
+    "Ludhiana":      "Punjab",
+    "Jalandhar":     "Punjab",
+    "Kota":          "Rajasthan",
+    "Udaipur":       "Rajasthan",
+    "Jodhpur":       "Rajasthan",
+    "Gwalior":       "Madhya Pradesh",
+    "Jabalpur":      "Madhya Pradesh",
+    "Cuttack":       "Odisha",
+    "Siliguri":      "West Bengal",
+    "Durgapur":      "West Bengal",
+    "Asansol":       "West Bengal",
+    "Gaya":          "Bihar",
+    "Vijayawada":    "Andhra Pradesh",
+    "Guntur":        "Andhra Pradesh",
+    "Tirupati":      "Andhra Pradesh",
+    "Warangal":      "Telangana",
+    "Nizamabad":     "Telangana",
+    "Madurai":       "Tamil Nadu",
+    "Salem":         "Tamil Nadu",
+    "Tiruchirappalli": "Tamil Nadu",
+    "Silchar":       "Assam",
+    "Dibrugarh":     "Assam",
+
+    # ── New states/UTs not previously covered ──
+    "Bengaluru":     "Karnataka",
+    "Mysuru":        "Karnataka",
+    "Hubli":         "Karnataka",
+    "Kochi":         "Kerala",
+    "Thiruvananthapuram": "Kerala",
+    "Kozhikode":     "Kerala",
+    "Gurugram":      "Haryana",
+    "Faridabad":     "Haryana",
+    "Karnal":        "Haryana",
+    "Raipur":        "Chhattisgarh",
+    "Bilaspur":      "Chhattisgarh",
+    "Ranchi":        "Jharkhand",
+    "Jamshedpur":    "Jharkhand",
+    "Dehradun":      "Uttarakhand",
+    "Haridwar":      "Uttarakhand",
+    "Shimla":        "Himachal Pradesh",
+    "Panaji":        "Goa",
+    "Chandigarh":    "Chandigarh",
+    "Srinagar":      "Jammu and Kashmir",
+    "Jammu":         "Jammu and Kashmir",
+    "Puducherry":    "Puducherry",
+    "Agartala":      "Tripura",
 }
 
 # Real daily price history, built up one genuine data point per day as the
 # app runs (no fabricated numbers). Persisted to disk so it survives restarts.
 _AGMARK_HISTORY_PATH = os.path.join(basedir, "market_history_cache.json")
 _agmark_history_lock = threading.Lock()
-_agmark_fetch_cache = {}          # {state: (timestamp, results)} — in-memory, 15 min
-AGMARK_CACHE_TTL_SEC = 15 * 60
+_agmark_fetch_cache = {}          # {state: (timestamp, results)} — in-memory
+# With ~30 unique states/UTs now in play and mandi prices only updating once
+# a day, a 15-min cache was too aggressive — worst case it could push us
+# toward the Agmarknet daily call quota (see API_LIMITS_CONFIG) if the page
+# gets steady traffic. 1 hour keeps total daily calls comfortably under the
+# safe limit while still refreshing several times a day.
+AGMARK_CACHE_TTL_SEC = 60 * 60
 
 
 def _load_history_cache():
@@ -833,6 +811,22 @@ def _field(record: dict, *keys):
     return None
 
 
+def _parse_arrival_date(date_str):
+    """Normalize Agmarknet's arrival_date (commonly DD/MM/YYYY) to a sortable
+    ISO YYYY-MM-DD string, so multiple real reporting dates in one response
+    can be deduped and ordered correctly. Returns None if unrecognized —
+    callers skip records whose date we can't trust rather than guessing."""
+    if not date_str:
+        return None
+    date_str = str(date_str).strip()
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(date_str, fmt).strftime("%Y-%m-%d")
+        except ValueError:
+            continue
+    return None
+
+
 # A handful of states are recorded under a different name than their
 # common name (same place, different label) — try each candidate in
 # order until one returns records. NOTE: this must only contain true
@@ -841,15 +835,19 @@ def _field(record: dict, *keys):
 # so they are deliberately NOT listed as fallbacks for each other; doing
 # so would silently show one state's real prices mislabeled as another's.
 STATE_NAME_CANDIDATES = {
-    "Delhi":  ["Delhi", "NCT of Delhi"],
-    "Odisha": ["Odisha", "Orissa"],
+    "Delhi":               ["Delhi", "NCT of Delhi"],
+    "Odisha":              ["Odisha", "Orissa"],
+    "Uttarakhand":         ["Uttarakhand", "Uttaranchal"],
+    "Jammu and Kashmir":   ["Jammu and Kashmir", "Jammu & Kashmir"],
+    "Puducherry":          ["Puducherry", "Pondicherry"],
 }
 
 
 def fetch_agmarknet_prices(state: str) -> list:
     """Fetch REAL, government-reported mandi (wholesale market) prices for a
     state from data.gov.in's official Agmarknet dataset. Returns [] if the
-    feed has nothing usable right now (caller falls back to MSP reference)."""
+    feed has nothing usable right now (caller reports this city as having
+    no live data — no fabricated numbers are substituted)."""
     now = time.monotonic()
     cached = _agmark_fetch_cache.get(state)
     if cached and (now - cached[0]) < AGMARK_CACHE_TTL_SEC:
@@ -897,10 +895,17 @@ def fetch_agmarknet_prices(state: str) -> list:
     # fails you can see the real field names by checking your app logs.
     print(f"[Market] Sample record keys for {state}: {list(records[0].keys())}")
 
-    # A state has many markets/varieties reporting the same commodity —
-    # keep the most recent record per commodity.
-    latest_by_commodity = {}
+    # Agmarknet's response usually covers several recent reporting dates,
+    # not just today — a state has many markets/varieties reporting the
+    # same commodity across those dates. Group by (commodity, date) so we
+    # can compute a REAL day-over-day change straight from this batch
+    # whenever more than one date is already present, instead of only
+    # discarding everything but the single latest record.
+    by_commodity_date = {}   # display_name -> {iso_date: [modal_price, ...]}
+    latest_meta = {}         # display_name -> {"market", "district", "arrival_date" (raw), "_iso"}
     skipped_no_price = 0
+    skipped_bad_date = 0
+
     for r in records:
         raw_name = str(_field(r, "commodity", "Commodity") or "").strip()
         modal = _field(r, "modal_price", "Modal_x0020_Price", "Modal Price", "modal price")
@@ -914,16 +919,57 @@ def fetch_agmarknet_prices(state: str) -> list:
             continue
         if modal_price <= 0:
             continue
-        display_name = AGMARK_COMMODITY_ALIASES.get(raw_name.lower(), raw_name.title())
-        latest_by_commodity[display_name] = {
-            "market":       _field(r, "market", "Market") or "",
-            "district":     _field(r, "district", "District") or "",
-            "arrival_date": _field(r, "arrival_date", "Arrival_Date") or "",
-            "modal_price":  modal_price,
-        }
 
-    print(f"[Market] {state}: parsed {len(latest_by_commodity)} commodities, "
-          f"skipped {skipped_no_price} records (missing/invalid price or name)")
+        raw_date = _field(r, "arrival_date", "Arrival_Date")
+        iso_date = _parse_arrival_date(raw_date)
+        if not iso_date:
+            skipped_bad_date += 1
+            continue
+
+        display_name = AGMARK_COMMODITY_ALIASES.get(raw_name.lower(), raw_name.title())
+        by_commodity_date.setdefault(display_name, {}).setdefault(iso_date, []).append(modal_price)
+
+        meta = latest_meta.get(display_name)
+        if not meta or iso_date >= meta["_iso"]:
+            latest_meta[display_name] = {
+                "market":       _field(r, "market", "Market") or "",
+                "district":     _field(r, "district", "District") or "",
+                "arrival_date": raw_date or "",
+                "_iso":         iso_date,
+            }
+
+    print(f"[Market] {state}: parsed {len(by_commodity_date)} commodities, "
+          f"skipped {skipped_no_price} (missing/invalid price), "
+          f"{skipped_bad_date} (unparseable date)")
+
+    # Diagnostic: how many distinct calendar dates actually showed up in this
+    # single fetch? If Agmarknet's feed is a single-day snapshot (common for
+    # this dataset), every commodity will have exactly 1 date here — real
+    # day-over-day change then only becomes available once our own disk
+    # cache has accumulated a 2nd real day, not from one fetch alone.
+    all_dates_seen = set()
+    multi_date_commodities = 0
+    for date_map in by_commodity_date.values():
+        all_dates_seen.update(date_map.keys())
+        if len(date_map) >= 2:
+            multi_date_commodities += 1
+    print(f"[Market] {state}: distinct dates in this fetch = {sorted(all_dates_seen)} "
+          f"| commodities with 2+ dates in this single fetch: {multi_date_commodities}/{len(by_commodity_date)}")
+
+    # Average modal price across markets reporting the same commodity on the
+    # same date — still real, government-reported figures; this just applies
+    # the same state-level averaging the app already does, per date instead
+    # of picking one arbitrary record.
+    latest_by_commodity = {}
+    for display_name, date_map in by_commodity_date.items():
+        per_date_avg = {d: round(sum(prices) / len(prices), 2) for d, prices in date_map.items()}
+        meta = latest_meta[display_name]
+        latest_by_commodity[display_name] = {
+            "market":       meta["market"],
+            "district":     meta["district"],
+            "arrival_date": meta["arrival_date"],
+            "per_date":     per_date_avg,   # {iso_date: avg_modal_price} — real, multi-day
+        }
 
     today_key = datetime.now().strftime("%Y-%m-%d")
     results = []
@@ -934,34 +980,32 @@ def fetch_agmarknet_prices(state: str) -> list:
 
             for display_name, rec in latest_by_commodity.items():
                 hist = state_hist.setdefault(display_name, [])
-                if not hist or hist[-1].get("date") != today_key:
-                    hist.append({"date": today_key, "price": rec["modal_price"]})
-                    hist[:] = hist[-30:]  # keep the last 30 real daily points
+                existing_dates = {h["date"] for h in hist}
 
-                # If history has < 2 daily points (e.g. initial fetch), generate a realistic
-                # 30-day walk ending at today's real modal_price so trend charts and change % work dynamically.
+                # Merge in every real date this batch reported that we don't
+                # already have cached. If Agmarknet's response spans several
+                # days, this immediately gives a genuine multi-day trend
+                # instead of waiting on our own daily cache to accumulate it.
+                for d, price in rec["per_date"].items():
+                    if d not in existing_dates:
+                        hist.append({"date": d, "price": price})
+                        existing_dates.add(d)
+                hist.sort(key=lambda h: h["date"])
+                hist[:] = hist[-30:]  # keep the last 30 real daily points
+
                 if len(hist) < 2:
-                    rnd = _seeded_random(f"{state}:{display_name}")
-                    base_price = rec["modal_price"]
-                    full_series = [base_price]
-                    curr = base_price
-                    for _ in range(29):
-                        drift = (rnd.random() - 0.5) * 0.035  # ±1.75% daily variation
-                        curr = max(round(curr / (1 + drift)), round(base_price * 0.5))
-                        full_series.append(curr)
-                    full_series.reverse()
-                    prev_price = full_series[-2]
-                    change = round(((base_price - prev_price) / prev_price) * 100, 2) if prev_price else 0.0
-                    history_prices = full_series
+                    change = 0.0
                 else:
                     prev_price = hist[-2]["price"]
-                    change = round(((rec["modal_price"] - prev_price) / prev_price) * 100, 2) if prev_price else 0.0
-                    history_prices = [h["price"] for h in hist]
+                    today_price = hist[-1]["price"]
+                    change = round(((today_price - prev_price) / prev_price) * 100, 2) if prev_price else 0.0
+                history_prices = [h["price"] for h in hist]
+                display_price = hist[-1]["price"] if hist else next(iter(rec["per_date"].values()))
 
                 results.append({
                     "crop":         display_name,
                     "crop_key":     display_name,
-                    "price":        int(round(rec["modal_price"])),
+                    "price":        int(round(display_price)),
                     "change":       change,
                     "history":      history_prices,
                     "unit":         "Rs/quintal",
@@ -973,28 +1017,30 @@ def fetch_agmarknet_prices(state: str) -> list:
             _save_history_cache(cache)
     except Exception as e:
         # Never let a disk/cache problem take down live pricing — just skip
-        # persistence for this call and still return what we parsed.
+        # persistence for this call and still return what we parsed, using
+        # whatever real multi-day data this batch itself contained.
         print(f"[Market] History cache error for {state} (non-fatal): {e}")
         if not results:
             for display_name, rec in latest_by_commodity.items():
-                rnd = _seeded_random(f"{state}:{display_name}")
-                base_price = rec["modal_price"]
-                full_series = [base_price]
-                curr = base_price
-                for _ in range(29):
-                    drift = (rnd.random() - 0.5) * 0.035
-                    curr = max(round(curr / (1 + drift)), round(base_price * 0.5))
-                    full_series.append(curr)
-                full_series.reverse()
-                prev_price = full_series[-2]
-                change = round(((base_price - prev_price) / prev_price) * 100, 2) if prev_price else 0.0
+                dates_sorted = sorted(rec["per_date"].items())
+                if len(dates_sorted) >= 2:
+                    prev_price = dates_sorted[-2][1]
+                    today_price = dates_sorted[-1][1]
+                    change = round(((today_price - prev_price) / prev_price) * 100, 2) if prev_price else 0.0
+                    history_prices = [p for _, p in dates_sorted]
+                    display_price = today_price
+                else:
+                    change = 0.0
+                    only_price = dates_sorted[0][1] if dates_sorted else 0
+                    history_prices = [only_price]
+                    display_price = only_price
 
                 results.append({
                     "crop":         display_name,
                     "crop_key":     display_name,
-                    "price":        int(round(rec["modal_price"])),
+                    "price":        int(round(display_price)),
                     "change":       change,
-                    "history":      full_series,
+                    "history":      history_prices,
                     "unit":         "Rs/quintal",
                     "source":       "agmarknet_live",
                     "market":       rec["market"],
@@ -1003,7 +1049,10 @@ def fetch_agmarknet_prices(state: str) -> list:
                 })
 
     _agmark_fetch_cache[state] = (now, results)
-    print(f"[Market] Agmarknet OK for {state}: {len(results)} commodities")
+    with_history = sum(1 for r in results if len(r.get("history", [])) >= 2)
+    print(f"[Market] Agmarknet OK for {state}: {len(results)} commodities "
+          f"({with_history} have 2+ real cached days -> real change%, "
+          f"{len(results) - with_history} still on day 1 -> change=0.0 until next real day)")
     return results
 
 
@@ -1025,15 +1074,22 @@ def get_market_data():
     if location:
         cities = [c for c in cities if location in c.lower()]
 
-    # If someone searches for a city we don't recognize at all, still hand
-    # back fallback data for it rather than an empty result — better a
-    # complete-looking (if reference-only) market page than a dead end.
+    # A searched city we don't have a state mapping for simply has no data —
+    # we no longer invent a city entry with fabricated prices for it.
     if location and not cities:
-        cities = [location.title()]
+        return jsonify({
+            "markets":     {},
+            "locations":   [],
+            "live_count":  0,
+            "empty_cities": [],
+            "fetched_at":  datetime.now().isoformat(),
+            "data_source": "Agmarknet — Ministry of Agriculture & Farmers Welfare, Govt. of India (data.gov.in)",
+            "note":        f'No market mapping for "{location}". Try a supported city name.',
+        }), 200
 
     markets = {}
+    empty_cities = []
     live_total = 0
-    static_total = 0
 
     try:
         # Fetch every unique state IN PARALLEL instead of one-by-one — with
@@ -1062,10 +1118,12 @@ def get_market_data():
                 crops = []
 
             if not crops:
-                # Live feed empty/unavailable for this city's state — use the
-                # hardcoded reference basket so the page still has full data
-                # for every chart and comparison table.
-                crops = build_fallback_crops(city)
+                # Live Agmarknet feed genuinely has nothing for this state
+                # right now — report it as empty rather than filling the gap
+                # with fabricated numbers.
+                markets[city] = []
+                empty_cities.append(city)
+                continue
 
             city_crops = []
             for crop in crops:
@@ -1077,41 +1135,32 @@ def get_market_data():
                 reverse=True
             )
             markets[city] = city_crops
-            live_total   += sum(1 for c in city_crops if c.get("source") == "agmarknet_live")
-            static_total += sum(1 for c in city_crops if c.get("source") != "agmarknet_live")
+            live_total += len(city_crops)
 
         return jsonify({
             "markets":      markets,
             "locations":    list(markets.keys()),
             "live_count":   live_total,
-            "static_count": static_total,
+            "empty_cities": empty_cities,
             "fetched_at":   datetime.now().isoformat(),
             "data_source":  "Agmarknet — Ministry of Agriculture & Farmers Welfare, Govt. of India (data.gov.in)",
         })
 
     except Exception as e:
-        # Absolute last resort: something unexpected blew up above (disk,
-        # threading, parsing, whatever). Rather than returning a 500 and
-        # leaving the dashboard blank, hand back a full hardcoded fallback
-        # for every known city so the UI always has something to render.
-        print(f"[Market] /api/market hard failure, serving full hardcoded fallback: {e}")
-        fallback_cities = cities or list(CITY_STATE.keys())
-        markets = {}
-        for city in fallback_cities:
-            city_crops = [{**c, "demand": get_demand(c["price"], c["change"])} for c in build_fallback_crops(city)]
-            city_crops.sort(
-                key=lambda x: ({"Very High": 3, "High": 2, "Medium": 1, "Low": 0}.get(x["demand"], 0), x["price"]),
-                reverse=True
-            )
-            markets[city] = city_crops
+        # Something unexpected blew up (network, parsing, threading, etc).
+        # Report the failure honestly instead of masking it with fabricated
+        # data — the frontend should show a clear "couldn't load live data"
+        # state rather than numbers that look real but aren't.
+        print(f"[Market] /api/market failed: {e}")
         return jsonify({
-            "markets":      markets,
-            "locations":    list(markets.keys()),
-            "live_count":   0,
-            "static_count": sum(len(v) for v in markets.values()),
-            "fetched_at":   datetime.now().isoformat(),
-            "data_source":  "MSP reference prices (offline fallback — live fetch failed)",
-        })
+            "markets":     {},
+            "locations":   [],
+            "live_count":  0,
+            "empty_cities": cities,
+            "fetched_at":  datetime.now().isoformat(),
+            "data_source": "Agmarknet — Ministry of Agriculture & Farmers Welfare, Govt. of India (data.gov.in)",
+            "error":       "Could not fetch live market data right now. Please try again shortly.",
+        }), 502
 
 
 # ─── Debug endpoint ───────────────────────────────────────────────────────────
@@ -1978,17 +2027,40 @@ def _extract_json_object(raw_text):
     return None
 
 
-def _build_translate_prompt(terms_chunk, lang_name, domain_note):
+def _build_translate_prompt(terms_chunk, lang_name, domain_note, lang_code=""):
     terms_json = json.dumps(terms_chunk, ensure_ascii=False)
-    return f"""You are an expert translator for Indian regional languages. Translate each English term below to {lang_name}.
+
+    script_note = ""
+    if lang_code in ["hi", "mai", "ne", "sd", "doi", "sa"]:
+        script_note = "MUST write EXCLUSIVELY in Devanagari script (देवनागरी). Do NOT output Punjabi (Gurmukhi), Bengali, or Gujarati letters."
+    elif lang_code in ["bn", "as", "mni"]:
+        script_note = "MUST write EXCLUSIVELY in Bengali script (বাংলা)."
+    elif lang_code == "pa":
+        script_note = "MUST write EXCLUSIVELY in Gurmukhi script (ਗੁਰਮੁਖੀ)."
+    elif lang_code == "te":
+        script_note = "MUST write EXCLUSIVELY in Telugu script (తెలుగు)."
+    elif lang_code == "ta":
+        script_note = "MUST write EXCLUSIVELY in Tamil script (தமிழ்)."
+    elif lang_code == "gu":
+        script_note = "MUST write EXCLUSIVELY in Gujarati script (ગુજરાતી)."
+    elif lang_code == "kn":
+        script_note = "MUST write EXCLUSIVELY in Kannada script (ಕನ್ನಡ)."
+    elif lang_code == "ml":
+        script_note = "MUST write EXCLUSIVELY in Malayalam script (മലയാളം)."
+    elif lang_code in ["ur", "ks"]:
+        script_note = "MUST write EXCLUSIVELY in Urdu/Perso-Arabic script (اردو)."
+    elif lang_code == "or":
+        script_note = "MUST write EXCLUSIVELY in Odia script (ଓଡ଼ିଆ)."
+
+    return f"""You are an expert translator for Indian regional languages. Translate each English term below to {lang_name} ({lang_code}).
 
 CRITICAL RULES:
-1. Return ONLY a raw JSON object mapping each input term to its {lang_name} translation. No markdown, no backticks, no explanation.
-2. Every single key from the input list MUST appear in the output JSON, exactly as written.
-3. Keep unchanged: chemical/brand names, numbers, and units (kg/ha, Rs, days, ml/L, g/ha, quintal, SL, EC, SC, WP, SG, NPK).
-4. {domain_note}
-5. Use the natural everyday word a {lang_name}-speaking farmer would use, not a literal/academic translation.
-6. Write in the correct native script of {lang_name}. If a term genuinely has no equivalent, keep the English word as-is rather than leaving it blank.
+1. Target Language: {lang_name} ({lang_code}). {script_note}
+2. Return ONLY a raw JSON object mapping each input term to its {lang_name} translation. No markdown, no backticks, no explanation.
+3. Every single key from the input list MUST appear in the output JSON, exactly as written.
+4. Keep unchanged: chemical/brand names, numbers, and units (kg/ha, Rs, days, ml/L, g/ha, quintal, SL, EC, SC, WP, SG, NPK).
+5. {domain_note}
+6. Use natural everyday terms a {lang_name}-speaking farmer would recognize.
 
 Input terms (translate ALL of these):
 {terms_json}
@@ -1996,8 +2068,8 @@ Input terms (translate ALL of these):
 Output: a single JSON object only."""
 
 
-def _translate_terms_chunk(terms_chunk, lang_name, domain_note):
-    prompt = _build_translate_prompt(terms_chunk, lang_name, domain_note)
+def _translate_terms_chunk(terms_chunk, lang_name, domain_note, lang_code=""):
+    prompt = _build_translate_prompt(terms_chunk, lang_name, domain_note, lang_code)
     headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
     max_tokens = min(4096, 300 + len(terms_chunk) * 150)
 
@@ -2006,7 +2078,7 @@ def _translate_terms_chunk(terms_chunk, lang_name, domain_note):
         body = {
             "model": model,
             "messages": [
-                {"role": "system", "content": f"You are an expert Indian regional language translator. You MUST respond with valid JSON only, no other text. Translate everything to {lang_name} using its correct native script."},
+                {"role": "system", "content": f"You are an expert Indian regional language translator. You MUST respond with valid JSON only, no other text. Translate everything to {lang_name} ({lang_code}) using its correct native script."},
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.1,
@@ -2037,6 +2109,9 @@ def _translate_terms_chunk(terms_chunk, lang_name, domain_note):
         except Exception as e:
             last_error = str(e)
             continue
+
+    print(f"[Translate] chunk of {len(terms_chunk)} terms to {lang_name} failed on all models: {last_error}")
+    return {term: term for term in terms_chunk}
 
     print(f"[Translate] chunk of {len(terms_chunk)} terms to {lang_name} failed on all models: {last_error}")
     return {term: term for term in terms_chunk}
