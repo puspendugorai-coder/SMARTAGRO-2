@@ -35,6 +35,7 @@ app = Flask(__name__)
 
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
 GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")
+GEMINI_API_KEY       = os.getenv("GEMINI_API_KEY", "")
 NINJA_API_KEY       = os.getenv("NINJA_API_KEY", "")  # no longer used by /api/market (kept for backward-compat only)
 DEBUG_MODE          = os.getenv("FLASK_DEBUG", "0") == "1"
 
@@ -1450,63 +1451,53 @@ Respond ONLY with valid JSON, no markdown or backticks:
   "recovery_timeline": "Weeks for recovery"
 }}{lang_instruction}""" 
 
-    vision_models = [
-        "qwen/qwen3.6-27b",
-        "meta-llama/llama-4-scout-17b-16e-instruct",  # fallback if Qwen preview model is unavailable/limited
-    ]
-    headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "GEMINI_API_KEY not set in .env"}), 500
+
+    sys_prompt = "Expert plant pathologist. Return ONLY valid JSON."
+    if lang != "en" and lang_name:
+        sys_prompt += f" All free-text values must be in {lang_name}."
+
+    body = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": sys_prompt + "\n\n" + prompt},
+                    {"inline_data": {"mime_type": "image/jpeg", "data": image_b64}}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 3000,
+            "responseMimeType": "application/json"
+        }
+    }
 
     last_status, last_body = None, None
-
-    for model in vision_models:
-        allowed, err, details = check_api_limit(model, est_tokens=1400)
-        if not allowed:
-            return jsonify({"error": err, "limit_reached": True, "details": details, "api_name": "Groq Vision"}), 429
-
-        try:
-            sys_prompt = "Expert plant pathologist. Return ONLY valid JSON."
-            if lang != "en" and lang_name:
-                sys_prompt += f" All free-text values must be in {lang_name}."
-
-            body = {
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": sys_prompt},
-                    {"role": "user", "content": [
-                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
-                        {"type": "text", "text": prompt}
-                    ]}
-                ],
-                "temperature": 0.2,
-                "max_tokens":  1400,
-            }
-            # reasoning_effort is only accepted by Qwen 3.6 27B / GPT-OSS models on Groq
-            if "qwen3.6" in model:
-                body["reasoning_effort"] = "none"
-
-            resp = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=body, timeout=45)
-            if resp.status_code != 200:
-                last_status, last_body = resp.status_code, resp.text[:500]
-                print(f"[Diagnose] {model} returned {resp.status_code}: {last_body}")
-                continue
-            raw = resp.json()["choices"][0]["message"]["content"].strip()
+    try:
+        resp = requests.post(
+           "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+            headers={"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY},
+            json=body,
+            timeout=45
+        )
+        if resp.status_code == 200:
+            raw = resp.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
             cleaned = re.sub(r"```(?:json)?", "", raw).replace("```", "").strip()
             match = re.search(r"\{.*\}", cleaned, re.DOTALL)
             if match:
                 result = json.loads(match.group())
-                # Tag with the language so the frontend can skip the
-                # redundant /api/translate-diagnosis-result round-trip.
                 result["_lang"] = lang
-                record_api_usage(model, tokens=1400)
                 return jsonify(result)
-        except Exception as e:
-            last_status, last_body = "exception", str(e)
-            print(f"[Diagnose] {model}: {e}")
-            continue
+        last_status, last_body = resp.status_code, resp.text[:500]
+        print(f"[Diagnose] Gemini returned {resp.status_code}: {last_body}")
+    except Exception as e:
+        last_status, last_body = "exception", str(e)
+        print(f"[Diagnose] Gemini: {e}")
 
     detail_msg = f" (last error: {last_status} — {last_body})" if DEBUG_MODE and last_status else ""
-    return jsonify({"error": f"All vision models failed. Check your GROQ_API_KEY in .env{detail_msg}"}), 500
-
+    return jsonify({"error": f"Crop diagnosis is temporarily unavailable. Please try again in a moment.{detail_msg}"}), 500
 
 # ─── Alerts ──────────────────────────────────────────────────────────────────
 def _compute_alerts_for_conditions(temp, humidity, wind_speed, rain, description, date_str=None):
