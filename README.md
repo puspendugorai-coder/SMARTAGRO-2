@@ -60,8 +60,8 @@ pinned: false
 - **MSP Reference Benchmarks**: Minimum Support Price benchmarks for key commodities to ensure fair pricing.
 - **Social Sharing**: Direct share functionality for mandi market summaries and commodity price insights via WhatsApp.
 
-### 🔬 Groq AI Vision Crop Diagnostics
-- **Leaf & Crop Photo Analysis**: Upload or capture photos of diseased crops for instant AI diagnostics powered by Groq Vision AI (LLaMA 3.2 11B Vision).
+### 🔬 Gemini AI Vision Crop Diagnostics
+- **Leaf & Crop Photo Analysis**: Upload or capture photos of diseased crops for instant AI diagnostics powered by Gemini Vision AI.
 - **In-Depth Diagnosis**: Identifies crop diseases, pest infestations, and nutrient deficiencies with confidence scoring.
 - **Actionable Remedies**: Delivers organic eco-friendly treatments, precise chemical dosages, preventive measures, and estimated recovery timelines.
 - **Offline Diagnosis Fallback**: Provides symptom-based diagnostic fallbacks when connectivity is limited.
@@ -98,7 +98,7 @@ pinned: false
 |---|---|
 | **Backend Framework** | Python 3.11, Flask 3.0, Gunicorn |
 | **Frontend UI** | HTML5, Vanilla CSS3 (CSS Grid, Flexbox, Glassmorphism), Vanilla JavaScript (ES6+) |
-| **AI / Machine Learning** | Groq API (LLaMA 3.3 70B Versatile, LLaMA 3.2 11B Vision, LLaMA 3.1 8B Instant) |
+| **AI / Machine Learning** | Groq API (qwen3.6-27b) , Gemini API | 
 | **GIS / Mapping** | Leaflet.js, Esri World Imagery Satellite Tiles |
 | **Data Sources** | Government of India Agmarknet API (`data.gov.in`), OpenWeatherMap API, NASA MODIS NDVI Data |
 | **Data Visualization** | Chart.js |
@@ -129,19 +129,6 @@ SmartAgro-2/
     ├── market.html             # Mandi Market Prices & Trends page
     ├── alerts.html             # Farm Alerts & Forecast Center page
     └── offline.html            # PWA offline fallback page
-```
-
----
-
-## 🔑 Environment Variables
-
-To run SmartAgro locally or deploy to Hugging Face Spaces, configure the following environment variables in your `.env` file:
-
-```env
-GROQ_API_KEY=your_groq_api_key_here
-OPENWEATHER_API_KEY=your_openweather_api_key_here
-DATA_GOV_IN_API_KEY=your_data_gov_in_api_key_here
-FLASK_ENV=production
 ```
 
 ---
