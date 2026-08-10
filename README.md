@@ -25,7 +25,7 @@ pinned: false
 **Empowering India's farmers with real-time mandi intelligence, AI crop diagnostics, satellite vegetation health, and multi-period weather risk alerts — across 23 regional languages.**
 
 ### 🚀 Live Demo
-## 👉 [Click Here to Open the App](https://huggingface.co/spaces/AlphaCoder7206/Smartagro)
+## 👉 [Click Here to Open the App](https://alphacoder7206-smartagro.hf.space/)
 
 </div>
 
