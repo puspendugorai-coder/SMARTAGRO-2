@@ -657,6 +657,11 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
       stopSpeaking();
       if (activeTyper) activeTyper.finish();
       if (isListening) stopKisanMic();
+      
+      // End the session when the user closes the chatbot window
+      if (chatHistory.length > 0) {
+        setTimeout(() => newKisanChat(), 300);
+      }
     }
     updateHelplineVisibility();
   };
@@ -810,6 +815,8 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     const list   = document.getElementById('kisanMessages');
     if (!bubble) return;
     if (activeTyper) activeTyper.finish();
+    
+    saveSessionHistory(); // auto-save immediately before animation starts!
 
     let i = 0;
     const step = Math.max(1, Math.round(fullText.length / 90));
@@ -831,7 +838,6 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
         clearInterval(timer);
         bubble.innerHTML = formatMsgText(fullText);
         activeTyper = null;
-        saveSessionHistory(); // auto-save after finish
       }
     };
   }
@@ -1000,7 +1006,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
       if (inp && inp.value.trim()) {
         window.sendKisanMessage();
       }
-    }, 10000);
+    }, 4000);
   }
 
   function stopKisanMic() {
@@ -1034,6 +1040,7 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     const input = document.getElementById('kisanInput');
     if (input) input.value = '';
     finalTranscript = '';  // reset accumulated finals for new session
+    let accumulatedSessionText = ''; // archives text across forced Android engine restarts
 
     recognition = new SR();
     recognition.lang            = speechLang;
@@ -1044,26 +1051,52 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     recognition.onstart = () => {
       isListening = true;
       updateMicState(true);
-      showKisanToast('Listening... speak now');
     };
 
     recognition.onresult = e => {
-      // Collect newly finalised segments (isFinal=true) and only the
-      // very last interim chunk — avoids duplicate/growing text.
-      let interimChunk = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const seg = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          finalTranscript += (finalTranscript ? ' ' : '') + seg.trim();
+      let combined = '';
+      
+      for (let i = 0; i < e.results.length; i++) {
+        let t = e.results[i][0].transcript.trim();
+        if (!t) continue;
+        
+        if (!combined) {
+          combined = t;
+          continue;
+        }
+        
+        // If Android pushes exact duplicates or substrings, ignore
+        if (combined.toLowerCase().endsWith(t.toLowerCase())) {
+          continue;
+        }
+        
+        // If the new string completely contains the old string (progressive update)
+        if (t.toLowerCase().startsWith(combined.toLowerCase())) {
+          combined = t;
+          continue;
+        }
+        
+        // Find the maximum overlapping phrase between the end of 'combined' and start of 't'
+        let maxOverlap = 0;
+        let minLen = Math.min(combined.length, t.length);
+        for (let j = 1; j <= minLen; j++) {
+          if (combined.slice(-j).toLowerCase() === t.slice(0, j).toLowerCase()) {
+            maxOverlap = j;
+          }
+        }
+        
+        if (maxOverlap > 0) {
+          combined += t.slice(maxOverlap); // Merge overlapping parts
         } else {
-          interimChunk = seg; // only keep the latest interim segment
+          combined += ' ' + t; // No overlap, just append
         }
       }
-      const combined = finalTranscript + (interimChunk ? (finalTranscript ? ' ' : '') + interimChunk : '');
+      
+      const finalVal = accumulatedSessionText ? accumulatedSessionText + ' ' + combined : combined;
       const inp = document.getElementById('kisanInput');
-      if (inp) inp.value = combined;
+      if (inp) inp.value = finalVal;
 
-      if (combined.trim()) {
+      if (finalVal) {
         startSpeechSilenceTimer();
       }
     };
@@ -1078,16 +1111,21 @@ body.light-theme .kw-speak-btn  { border-color: rgba(22,101,52,.25); color: rgba
     };
 
     recognition.onend = () => {
-      if (isListening && speechSilenceTimer) {
-        try {
-          recognition.start();
-          return;
-        } catch (err) {}
+      if (isListening) {
+        stopKisanMic();
+        const inp = document.getElementById('kisanInput');
+        if (inp && inp.value.trim()) window.sendKisanMessage();
       }
+      isListening = false;
       updateMicState(false);
     };
 
-    try { recognition.start(); } catch { showKisanToast('Could not start mic.'); }
+    try { 
+      showKisanToast('Listening... speak now');
+      recognition.start(); 
+    } catch { 
+      showKisanToast('Could not start mic.'); 
+    }
   };
 
   function updateMicState(listening) {
